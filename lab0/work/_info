@@ -1,0 +1,180 @@
+m255
+K4
+z2
+Z0 !s99 nomlopt
+R0
+R0
+R0
+R0
+R0
+R0
+R0
+R0
+R0
+R0
+!s11f vlog 2021.3 2021.07, Jul 13 2021
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+Z1 dC:/Users/colli/CompArc/lab0
+T_opt
+!s110 1706404255
+V:6n^R3OOEz@LejG;k]<ab1
+Z2 04 8 4 work stimulus fast 0
+=1-7c10c924bb0c-65b5a99f-248-6f48
+Z3 !s124 OEM100
+Z4 o-quiet -auto_acc_if_foreign -work work +acc
+Z5 tCvgOpt 0
+n@_opt
+Z6 OL;O;2021.3;73
+R1
+T_opt1
+!s110 1706404877
+V5mD46INWcojHBHaOK[jkU2
+R2
+=1-7c10c924bb0c-65b5ac0d-2c9-1638
+R3
+R4
+R5
+n@_opt1
+R6
+R1
+T_opt2
+!s110 1706404938
+VQzM53Ez4G^XVh99gVXTAA3
+R2
+=1-7c10c924bb0c-65b5ac4a-2df-16c8
+R3
+R4
+R5
+n@_opt2
+R6
+R1
+T_opt3
+!s110 1706405489
+Vl0mSgd612f;H]1hhbA2lX0
+R2
+=1-7c10c924bb0c-65b5ae71-112-819c
+R3
+R4
+R5
+n@_opt3
+R6
+R1
+T_opt4
+!s110 1706407070
+Vk?80KJbcd<L?`QQCdMDGz1
+R2
+=1-7c10c924bb0c-65b5b49e-13e-1be8
+R3
+R4
+R5
+n@_opt4
+R6
+R1
+T_opt5
+!s110 1706407136
+V8RY`9l[4GEj1iRSgJ6QHQ1
+R2
+=1-7c10c924bb0c-65b5b4e0-62-7c40
+R3
+R4
+R5
+n@_opt5
+R6
+R1
+T_opt6
+!s110 1706407969
+VU_c><0X6WzS?:M>a<`0K[0
+R2
+=1-7c10c924bb0c-65b5b821-168-61e0
+R3
+R4
+R5
+n@_opt6
+R6
+R1
+T_opt7
+!s110 1706408613
+V;glV:^L>UNIZGGMVeVNzk2
+R2
+=1-7c10c924bb0c-65b5baa5-15a-456c
+R3
+R4
+R5
+n@_opt7
+R6
+R1
+T_opt8
+!s110 1706409035
+VME1oHT?k[CI8R`HJ3DY3a3
+R2
+=1-7c10c924bb0c-65b5bc4b-8-3b84
+R3
+R4
+R5
+n@_opt8
+R6
+R1
+T_opt9
+!s110 1706475701
+VgVKoWfZ^d`3Q8AVC9TQE_0
+R2
+=1-7c10c924bb0c-65b6c0b4-2ec-8684
+R3
+R4
+R5
+n@_opt9
+R6
+vFSM
+Z7 DXx6 sv_std 3 std 0 22 9oUSJO;AeEaW`l:M@^WG92
+Z8 !s110 1706475700
+!i10b 1
+!s100 ;9UlQO`CZ6V49mWLXegBc0
+IKe2XOFzb5ZN:LTcXS[dna2
+S1
+R1
+w1706152976
+8FSM.sv
+FFSM.sv
+!i122 0
+L0 1 41
+Z9 VDg1SIo80bB@j0V0VzS_@n1
+Z10 OL;L;2021.3;73
+r1
+!s85 0
+31
+Z11 !s108 1706475700.000000
+Z12 !s107 FSM_tb.sv|FSM.sv|
+Z13 !s90 -reportprogress|300|FSM.sv|FSM_tb.sv|
+!i113 0
+Z14 o-L mtiAvm -L mtiRnm -L mtiOvm -L mtiUvm -L mtiUPF -L infact
+R5
+n@f@s@m
+vstimulus
+R7
+R8
+!i10b 1
+!s100 M[29lbHXPo9>LBhJ6@:MA3
+Ie>n1@RX<ZlAYjoAkUD=G20
+S1
+R1
+w1706307749
+8FSM_tb.sv
+FFSM_tb.sv
+!i122 0
+L0 1 54
+R9
+R10
+r1
+!s85 0
+31
+R11
+R12
+R13
+!i113 0
+R14
+R5
