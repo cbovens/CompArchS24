@@ -6,9 +6,16 @@ module stimulus ();
    
    
 	 logic 	    we3; //write enable, will depend on clk
-	 logic [4:0]   ra1, ra2, wa3; //2 5-bit inputs
-	 logic [31:0]  wd3; //1 32-bit input
-	 logic [31:0] rd1, rd2;
+	 logic [4:0]   ra1, ra2, wa3; //2 5-bit read addresses, 1 write address
+	 logic [31:0]  wd3; //1 32-bit write data 
+	 logic [31:0] rd1, rd2; //2 32-bit read data
+
+  //test vector variables
+   logic [31:0] vectornum, errors;
+   logic [123:0] testvectors [10000:0];
+   logic [31:0] rd1Exp, rd2Exp;
+   logic[2:0] ignoreVect [3:0]; //will will in space for hex data in .tv
+
 
    // Instantiate DUT
    regfile dut (clk, we3, ra1, ra2, wa3, wd3, rd1, rd2);
@@ -34,21 +41,35 @@ module stimulus ();
 	#5 $fdisplay(desc3, "%b %h %h %h || %h %h", we3, ra1, ra2, wd3, rd1, rd2);
      end   
    
-   initial 
-     begin
-  #5 we3 = 1'b1;
-  #0 wd3 = 32'hAAAAEEEE; //arbitrary data
-  #5 wd3 = 32'hEEEEAAAA;
-  //synchronous write test
-  #5 ra1 = 5'h1A;
-  #0 wd3 = 32'hAAAAEEEE;
-  #5 ra2 = 5'h1B;
-  #5 wa3 = 5'h1A;
-  #5 wa3 = 5'h1B;
+initial
+begin
+  $readmemh("regfile.tv", testvectors);
+  vectornum = 0; errors = 0;
+end
 
-  //attempt to write without we3 enabled rd's should reflect no changes!
-  #5 we3 = 1'b0;
-  #5 wd3 = 32'h03030309;
-     end
 
-endmodule // reg_tb
+always @(posedge clk)
+begin
+  //begin bitswizzle
+  #1; {ignoreVect[0], we3, wd3, ignoreVect[1], wa3, ignoreVect[2], ra1, ignoreVect[3], ra2, rd1Exp, rd2Exp} = testvectors[vectornum];
+end
+
+
+always @(negedge clk)
+begin
+    if (rd1 !== rd1Exp | rd2 !== rd2Exp) 
+      begin 
+      $display("Error Occured!!!");
+      errors = errors + 1;
+      end
+      vectornum = vectornum + 1;
+    if (testvectors[vectornum] === 'bx) 
+      begin
+      $display("%d tests completed with %d errors",
+      vectornum, errors);
+      $stop;
+      end
+end
+
+
+endmodule //rf_tb

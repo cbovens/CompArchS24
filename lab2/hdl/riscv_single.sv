@@ -163,6 +163,7 @@ module aludec (input  logic       opb5,
 		    ALUControl = 3'b000; // add, addi
 		  3'b010: ALUControl = 3'b101; // slt, slti
 		  3'b110: ALUControl = 3'b011; // or, ori
+      3'b100: ALUControl = 3'b100; // xor                     <--ADDED
 		  3'b111: ALUControl = 3'b010; // and, andi
 		  default: ALUControl = 3'bxxx; // ???
 		endcase // case (funct3)       
@@ -320,10 +321,12 @@ module alu (input  logic [31:0] a, b,
 
    always_comb
      case (alucontrol)
+     //R TYPE INSTRUCTIONS
        3'b000:  result = sum;         // add
        3'b001:  result = sum;         // subtract
        3'b010:  result = a & b;       // and
        3'b011:  result = a | b;       // or
+       3'b100:  result = a ^ b;       // xor                               <---ADDED
        3'b101:  result = sum[31] ^ v; // slt       
        default: result = 32'bx;
      endcase
