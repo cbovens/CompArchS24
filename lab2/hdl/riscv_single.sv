@@ -138,6 +138,7 @@ module maindec (input  logic [6:0] op,
        7'b1100011: controls = 11'b0_10_0_0_00_1_01_0; // beq
        7'b0010011: controls = 11'b1_00_1_0_00_0_10_0; // I–type ALU
        7'b1101111: controls = 11'b1_11_0_0_10_0_00_1; // jal
+       7'b1100111: controls = 11'b1_00_1_0_00_0_00_1; // jalr                        <---Check
        default: controls = 11'bx_xx_x_x_xx_x_xx_x; // ???
      endcase // case (op)
    
@@ -147,25 +148,28 @@ module aludec (input  logic       opb5,
 	       input  logic [2:0] funct3,
 	       input  logic 	  funct7b5,
 	       input  logic [1:0] ALUOp,
-	       output logic [2:0] ALUControl);
+	       output logic [3:0] ALUControl);
    
    logic 			  RtypeSub;
    
    assign RtypeSub = funct7b5 & opb5; // TRUE for R–type subtract
    always_comb
      case(ALUOp)
-       2'b00: ALUControl = 3'b000; // addition
-       2'b01: ALUControl = 3'b001; // subtraction
+       2'b00: ALUControl = 4'b0000; // addition
+       2'b01: ALUControl = 4'b0001; // subtraction
        default: case(funct3) // R–type or I–type ALU
 		  3'b000: if (RtypeSub)
-		    ALUControl = 3'b001; // sub
+		    ALUControl = 4'b0001; // sub, subi
 		  else
-		    ALUControl = 3'b000; // add, addi
-		  3'b010: ALUControl = 3'b101; // slt, slti
-		  3'b110: ALUControl = 3'b011; // or, ori
-      3'b100: ALUControl = 3'b100; // xor                     <--ADDED
-		  3'b111: ALUControl = 3'b010; // and, andi
-		  default: ALUControl = 3'bxxx; // ???
+		    ALUControl = 4'b0000; // add, addi
+      //3'b000                                                <--Check?
+      //3'b001
+		  3'b010: ALUControl = 4'b0101; // slt, slti
+      //3'b011: ALUControl = 4'b    // sltu, sltiu
+		  3'b110: ALUControl = 4'b0011; // or, ori
+      3'b100: ALUControl = 4'b0100; // xor
+		  3'b111: ALUControl = 4'b0010; // and, andi
+		  default: ALUControl = 4'bxxxx; // ???
 		endcase // case (funct3)       
      endcase // case (ALUOp)
    
@@ -212,19 +216,22 @@ module adder (input  logic [31:0] a, b,
 endmodule
 
 module extend (input  logic [31:7] instr,
-	       input  logic [1:0]  immsrc,
+	       input  logic [2:0]  immsrc,
 	       output logic [31:0] immext);
    
    always_comb
      case(immsrc)
        // I−type
-       2'b00:  immext = {{20{instr[31]}}, instr[31:20]};
+       3'b000:  immext = {{20{instr[31]}}, instr[31:20]};
        // S−type (stores)
-       2'b01:  immext = {{20{instr[31]}}, instr[31:25], instr[11:7]};
+       3'b001:  immext = {{20{instr[31]}}, instr[31:25], instr[11:7]};
        // B−type (branches)
-       2'b10:  immext = {{20{instr[31]}}, instr[7], instr[30:25], instr[11:8], 1'b0};       
+       3'b010:  immext = {{20{instr[31]}}, instr[7], instr[30:25], instr[11:8], 1'b0};       
        // J−type (jal)
-       2'b11:  immext = {{12{instr[31]}}, instr[19:12], instr[20], instr[30:21], 1'b0};
+       3'b011:  immext = {{12{instr[31]}}, instr[19:12], instr[20], instr[30:21], 1'b0};
+       // U-type (LUI, AUIPC)
+       3'b100:  immext = {instr[31:12], 12'b0};
+
        default: immext = 32'bx; // undefined
      endcase // case (immsrc)
    
@@ -287,7 +294,7 @@ endmodule // top
 module imem (input  logic [31:0] a,
 	     output logic [31:0] rd);
    
-   logic [31:0] 		 RAM[63:0];
+   logic [31:0] 		 RAM[255:0];
    
    assign rd = RAM[a[31:2]]; // word aligned
    
@@ -306,7 +313,7 @@ module dmem (input  logic        clk, we,
 endmodule // dmem
 
 module alu (input  logic [31:0] a, b,
-            input  logic [2:0] 	alucontrol,
+            input  logic [3:0] 	alucontrol,
             output logic [31:0] result,
             output logic 	zero);
 
@@ -321,13 +328,25 @@ module alu (input  logic [31:0] a, b,
 
    always_comb
      case (alucontrol)
-     //R TYPE INSTRUCTIONS
-       3'b000:  result = sum;         // add
-       3'b001:  result = sum;         // subtract
-       3'b010:  result = a & b;       // and
-       3'b011:  result = a | b;       // or
-       3'b100:  result = a ^ b;       // xor                               <---ADDED
-       3'b101:  result = sum[31] ^ v; // slt       
+     //ALU LOGIC
+       4'b0000:  result = sum;         // add
+       4'b0001:  result = sum;         // subtract
+       4'b0010:  result = a & b;       // and
+       4'b0011:  result = a | b;       // or
+       4'b0100:  result = a ^ b;       // xor                              <---ADDED
+       4'b0101:  result = sum[31] ^ v; // slt
+       4'b0110:  result = a << b;      // sll
+       4'b0111:  result = a >> b;      // srl
+       4'b1000:  result = a >>> b;     // sra
+       4'b1001:  result = (unsigned)sum[31] ^ (unsigned)v;  //sltu            ALMOST DEF WRONG!!! Don't use V, make new var to work with unsigned d
+       /*4'b1001:
+       4'b1010:
+       4'b1011:
+       4'b1100:
+       4'b1101:
+       4'b1110:
+       4'b1111:*/
+
        default: result = 32'bx;
      endcase
 
