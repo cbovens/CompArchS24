@@ -133,11 +133,11 @@ module maindec (input  logic [6:0] op,
      case(op)
        // RegWrite_ImmSrc_ALUSrc_MemWrite_ResultSrc_Branch_ALUOp_Jump
        //CHECK ALL!!!
-       7'b0000011: controls = 11'b1_000_1_0_10_0_00_0; // load
+       7'b0000011: controls = 11'b1_000_1_0_01_0_00_0; // load
        7'b0100011: controls = 11'b0_001_1_1_00_0_00_0; // store
-       7'b0110011: controls = 11'b1_xxx_0_0_01_0_10_0; // R–type
+       7'b0110011: controls = 11'b1_xxx_0_0_00_0_10_0; // R–type
        7'b1100011: controls = 11'b0_010_0_0_00_1_01_0; // B-type
-       7'b0010011: controls = 11'b1_000_1_0_01_0_10_0; // I–type ALU
+       7'b0010011: controls = 11'b1_000_1_0_00_0_10_0; // I–type ALU
        7'b1101111: controls = 11'b1_011_0_0_10_0_00_1; // jal
        7'b1100111: controls = 11'b1_000_1_0_00_0_00_1; // jalr                        <---Check
        7'b0110111: controls = 11'b1_100_0_0_10_0_00_0; // lui     CHECK////////
@@ -334,7 +334,7 @@ module alu (input  logic [31:0] a, b,
      case (alucontrol)
      //ALU LOGIC
        4'b0000:  result = sum;         // add
-       4'b0001:  result = sum;         // subtract
+       4'b0001:  result = sum;         // sub
        4'b0010:  result = a & b;       // and
        4'b0011:  result = a | b;       // or
        4'b0100:  result = a ^ b;       // xor                              <---ADDED
