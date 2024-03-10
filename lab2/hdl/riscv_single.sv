@@ -133,16 +133,16 @@ module maindec (input  logic [6:0] op,
      case(op)
        // RegWrite_ImmSrc_ALUSrc_MemWrite_ResultSrc_Branch_ALUOp_Jump
        //CHECK ALL!!!
-       7'b0000011: controls = 11'b1_000_1_0_01_0_00_0; // load
-       7'b0100011: controls = 11'b0_001_1_1_00_0_00_0; // store
-       7'b0110011: controls = 11'b1_xxx_0_0_00_0_10_0; // R–type
-       7'b1100011: controls = 11'b0_010_0_0_00_1_01_0; // B-type
-       7'b0010011: controls = 11'b1_000_1_0_00_0_10_0; // I–type ALU
-       7'b1101111: controls = 11'b1_011_0_0_10_0_00_1; // jal
-       7'b1100111: controls = 11'b1_000_1_0_00_0_00_1; // jalr                        <---Check
-       7'b0110111: controls = 11'b1_100_0_0_10_0_00_0; // lui     CHECK////////
-       7'b0010111: controls = 11'b1_100_1_0_00_0_00_0; // auipc   CHECK////////
-       default: controls = 11'bx_xx_x_x_xx_x_xx_x; // ???
+       7'b0000011: controls = 12'b1_000_1_0_01_0_00_0; // load
+       7'b0100011: controls = 12'b0_001_1_1_00_0_00_0; // store
+       7'b0110011: controls = 12'b1_xxx_0_0_00_0_10_0; // R–type
+       7'b1100011: controls = 12'b0_010_0_0_00_1_01_0; // B-type
+       7'b0010011: controls = 12'b1_000_1_0_00_0_10_0; // I–type ALU
+       7'b1101111: controls = 12'b1_011_0_0_10_0_00_1; // jal
+       7'b1100111: controls = 12'b1_000_1_0_10_0_00_1; // jalr                        <---Check
+       7'b0110111: controls = 12'b1_100_1_0_10_0_11_0; // lui     CHECK////////
+       7'b0010111: controls = 12'b1_100_1_0_00_0_00_0; // auipc   CHECK////////
+       default: controls = 12'bx_xx_x_x_xx_x_xx_x; // ???
      endcase // case (op)
    
 endmodule // maindec
@@ -161,16 +161,14 @@ module aludec (input  logic       opb5,
        2'b00: ALUControl = 4'b0000; // addition
        2'b01: ALUControl = 4'b0001; // subtraction
        default: case(funct3) // R–type or I–type ALU
-		  3'b000: if (RtypeSub)
-		    ALUControl = 4'b0001; // sub, subi
-		  else
-		    ALUControl = 4'b0000; // add, addi
-      //3'b000                                                <--Check?
+                                  // sub, subi  add, addi
+      3'b000: ALUControl = RtypeSub ? 4'b0001 : 4'b0000;
+      3'b001: ALUControl = 4'b0110; // sll, slli
 		  3'b010: ALUControl = 4'b0101; // slt, slti
       3'b011: ALUControl = 4'b1001; // sltu, sltiu
       3'b100: ALUControl = 4'b0100; // xor
       //                              sra,srai  srl,srli	
-      3'b101: ALUControl = funct7b5 ? 4'b0110 : 4'b0111;
+      3'b101: ALUControl = funct7b5 ? 4'b1000 : 4'b0111;
       3'b110: ALUControl = 4'b0011; // or, ori
 		  3'b111: ALUControl = 4'b0010; // and, andi
 		  default: ALUControl = 4'bxxxx; // ???
@@ -339,17 +337,10 @@ module alu (input  logic [31:0] a, b,
        4'b0011:  result = a | b;       // or
        4'b0100:  result = a ^ b;       // xor                              <---ADDED
        4'b0101:  result = sum[31] ^ v; // slt
-       4'b0110:  result = a << b[4:0];      // sll    why half byte shift? Shouldn't it be byte? WTF!!!!! #epicfail
+       4'b0110:  result = a << b[4:0];      // sll    shift up to 32 bits
        4'b0111:  result = a >> b[4:0];      // srl
        4'b1000:  result = a >>> b[4:0];     // sra
        4'b1001:  result = {{(31){1'b0}}, ~c}; //sltu            ALMOST DEF WRONG!!! Don't use V, make new var to work with unsigned d need to use specific bit for unsigned
-       /*4'b1001:
-       4'b1010:
-       4'b1011:
-       4'b1100:
-       4'b1101:
-       4'b1110:
-       4'b1111:*/
 
        default: result = 32'bx;
      endcase
