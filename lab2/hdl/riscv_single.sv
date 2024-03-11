@@ -112,8 +112,9 @@ module controller (input  logic [6:0] op,
    maindec md (op, ResultSrc, MemWrite, Branch,
 	       ALUSrc, RegWrite, Jump, ImmSrc, ALUOp);
    aludec ad (op[5], funct3, funct7b5, ALUOp, ALUControl);
-   assign PCSrc = Branch & (Zero ^ funct3[0]) | Jump;
-   
+    case(funct3)
+    3'b00x: PCSrc = Branch & (Zero ^ funct3[0]) | Jump; //beq, bne
+    endcase
 endmodule // controller
 
 module maindec (input  logic [6:0] op,
@@ -205,7 +206,7 @@ module datapath (input  logic        clk, reset,
    extend  ext (Instr[31:7], ImmSrc, ImmExt);
    // ALU logic
    mux2 #(32)  srcbmux (WriteData, ImmExt, ALUSrc, SrcB);
-   alu  alu (SrcA, SrcB, ALUControl, ALUResult, Zero);
+   alu  alu (SrcA, SrcB, ALUControl, ALUResult, Zero, CF, OF, SF);
    mux3 #(32) resultmux (ALUResult, ReadData, PCPlus4, ResultSrc, Result);
 
 endmodule // datapath
@@ -317,14 +318,14 @@ endmodule // dmem
 module alu (input  logic [31:0] a, b,
             input  logic [3:0] 	alucontrol,
             output logic [31:0] result,
-            output logic 	zero);
+            output logic 	ZF, CF, OF, SF); //Flags
 
    logic [31:0] 	       condinvb, sum;
-   logic 		       v, c;              // overflow and carry out flags
+   logic 		       v;
    logic 		       isAddSub;       // true when is add or subtract operation
 
    assign condinvb = alucontrol[0] ? ~b : b; //conditional invert b
-   assign {c, sum} = a + condinvb + alucontrol[0]; //check
+   assign sum = a + condinvb + alucontrol[0]; //check
    assign isAddSub = ~alucontrol[2] & ~alucontrol[1] |
                      ~alucontrol[1] & alucontrol[0];   
 
@@ -340,14 +341,16 @@ module alu (input  logic [31:0] a, b,
        4'b0110:  result = a << b[4:0];      // sll    shift up to 32 bits
        4'b0111:  result = a >> b[4:0];      // srl
        4'b1000:  result = a >>> b[4:0];     // sra
-       4'b1001:  result = {{(31){1'b0}}, ~c}; //sltu            ALMOST DEF WRONG!!! Don't use V, make new var to work with unsigned d need to use specific bit for unsigned
+       4'b1001:  result = a; //sltu            ALMOST DEF WRONG!!! Don't use V, make new var to work with unsigned d need to use specific bit for unsigned
 
        default: result = 32'bx;
      endcase
+   assign v = ~(alucontrol[0] ^ a[31] ^ b[31]) & (a[31] ^ sum[31]) & isAddSub; //overflow logic
+   assign ZF = (result == 32'b0); //zero flag 
+   assign CF = a < b; //Carry Flag
+   assign OF = v; //Overflow Flag
+   assign SF = result[31]; //Sign Flag
 
-   assign zero = (result == 32'b0);
-   assign v = ~(alucontrol[0] ^ a[31] ^ b[31]) & (a[31] ^ sum[31]) & isAddSub;
-   //assign c = a[31] + sum[31];
    
 endmodule // alu
 
