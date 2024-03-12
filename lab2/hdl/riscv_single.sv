@@ -79,42 +79,52 @@ module riscvsingle (input  logic        clk, reset,
 		    output logic [31:0] ALUResult, WriteData,
 		    input  logic [31:0] ReadData);
    
-   logic 				ALUSrc, RegWrite, Jump, Zero;
-   logic [1:0] 				ResultSrc, ImmSrc;
-   logic [2:0] 				ALUControl;
+   logic 				ALUSrc, RegWrite, Jump, ZF, CF, OF, SF, LUIOp;
+   logic [1:0] 				ResultSrc; 
+   logic [2:0] 				ImmSrc;
+   logic [3:0] 				ALUControl;
    
-   controller c (Instr[6:0], Instr[14:12], Instr[30], Zero,
+   controller c (Instr[6:0], Instr[14:12], Instr[30], ZF, CF, OF, SF,
 		 ResultSrc, MemWrite, PCSrc,
 		 ALUSrc, RegWrite, Jump,
-		 ImmSrc, ALUControl);
+		 ImmSrc, ALUControl, LUIOp);
    datapath dp (clk, reset, ResultSrc, PCSrc,
 		ALUSrc, RegWrite,
 		ImmSrc, ALUControl,
-		Zero, PC, Instr,
-		ALUResult, WriteData, ReadData);
+		ZF, CF, OF, SF, PC, Instr,
+		ALUResult, WriteData, ReadData,
+    LUIOp);
    
 endmodule // riscvsingle
 
 module controller (input  logic [6:0] op,
 		   input  logic [2:0] funct3,
 		   input  logic       funct7b5,
-		   input  logic       Zero,
+		   input  logic       ZF, CF, OF, SF,
 		   output logic [1:0] ResultSrc,
 		   output logic       MemWrite,
 		   output logic       PCSrc, ALUSrc,
 		   output logic       RegWrite, Jump,
-		   output logic [2:0] ImmSrc,
-		   output logic [2:0] ALUControl);
+		   output logic [2:0] ImmSrc, 
+		   output logic [3:0] ALUControl, 
+       output logic LUIOp);
    
    logic [1:0] 			      ALUOp;
-   logic 			      Branch;
-   
+   logic 			      Branch, DoBranch;
+   //if(op == 7'b1100011) {assign  ALUOp = 2'b01};
+
    maindec md (op, ResultSrc, MemWrite, Branch,
 	       ALUSrc, RegWrite, Jump, ImmSrc, ALUOp);
    aludec ad (op[5], funct3, funct7b5, ALUOp, ALUControl);
+  always_comb
     case(funct3)
-    3'b00x: PCSrc = Branch & (Zero ^ funct3[0]) | Jump; //beq, bne
+    3'b00x: DoBranch = ZF ^ funct3[0]; //beq, bne
+    3'b10x: DoBranch = (SF ^ OF) ^ funct3[0]; //blt, bge might have to be ~
+    3'b11x: DoBranch = CF ^ funct3[0]; //bltu, bgeu
+    default: DoBranch = 1'bx;
     endcase
+  assign PCSrc = Branch & DoBranch | Jump;
+  assign LUIOp = op == 7'b0110111;
 endmodule // controller
 
 module maindec (input  logic [6:0] op,
@@ -182,19 +192,20 @@ module datapath (input  logic        clk, reset,
 		 input  logic [1:0]  ResultSrc,
 		 input  logic 	     PCSrc, ALUSrc,
 		 input  logic 	     RegWrite,
-		 input  logic [1:0]  ImmSrc,
-		 input  logic [2:0]  ALUControl,
-		 output logic 	     Zero,
+		 input  logic [2:0]  ImmSrc,
+		 input  logic [3:0]  ALUControl,
+		 output logic 	     ZF, CF, OF, SF,
 		 output logic [31:0] PC,
 		 input  logic [31:0] Instr,
 		 output logic [31:0] ALUResult, WriteData,
-		 input  logic [31:0] ReadData);
+		 input  logic [31:0] ReadData,
+     input  logic LUIOp);
    
    logic [31:0] 		     PCNext, PCPlus4, PCTarget;
    logic [31:0] 		     ImmExt;
    logic [31:0] 		     SrcA, SrcB;
    logic [31:0] 		     Result;
-   
+   logic [31:0] 		     RD1;
    // next PC logic
    flopr #(32) pcreg (clk, reset, PCNext, PC);
    adder  pcadd4 (PC, 32'd4, PCPlus4);
@@ -202,13 +213,15 @@ module datapath (input  logic        clk, reset,
    mux2 #(32)  pcmux (PCPlus4, PCTarget, PCSrc, PCNext);
    // register file logic
    regfile  rf (clk, RegWrite, Instr[19:15], Instr[24:20],
-	       Instr[11:7], Result, SrcA, WriteData);
+	       Instr[11:7], Result, RD1, WriteData);
    extend  ext (Instr[31:7], ImmSrc, ImmExt);
    // ALU logic
    mux2 #(32)  srcbmux (WriteData, ImmExt, ALUSrc, SrcB);
-   alu  alu (SrcA, SrcB, ALUControl, ALUResult, Zero, CF, OF, SF);
+   alu  alu (SrcA, SrcB, ALUControl, ALUResult, ZF, CF, OF, SF);
    mux3 #(32) resultmux (ALUResult, ReadData, PCPlus4, ResultSrc, Result);
-
+   
+   //LUI logic
+  mux2 #(32) luimux (RD1, 1'b0, LUIOp, SrcA);
 endmodule // datapath
 
 module adder (input  logic [31:0] a, b,
