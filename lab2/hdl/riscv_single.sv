@@ -77,7 +77,8 @@ module riscvsingle (input  logic        clk, reset,
 		    input  logic [31:0] Instr,
 		    output logic 	MemWrite,
 		    output logic [31:0] ALUResult, WriteData,
-		    input  logic [31:0] ReadData);
+		    input  logic [31:0] ReadData,
+        input logic [3:0] ByteMask);
    
    logic 				ALUSrc, RegWrite, Jump, ZF, CF, OF, SF, LUIOp;
    logic [1:0] 				ResultSrc; 
@@ -93,8 +94,8 @@ module riscvsingle (input  logic        clk, reset,
 		ImmSrc, ALUControl,
 		ZF, CF, OF, SF, PC, Instr,
 		ALUResult, WriteData, ReadData,
-    LUIOp);
-   
+    LUIOp, ByteMask);
+
 endmodule // riscvsingle
 
 module controller (input  logic [6:0] op,
@@ -112,17 +113,17 @@ module controller (input  logic [6:0] op,
    logic [1:0] 			      ALUOp;
    logic 			      Branch, DoBranch;
    //if(op == 7'b1100011) {assign  ALUOp = 2'b01};
-
+  always_comb
+    casex (funct3)
+    3'b00x: DoBranch = ~(ZF ^ funct3[0]); //beq, bne
+    3'b10x: DoBranch = SF ^ funct3[0]; //blt, bge 
+    3'b11x: DoBranch = ~(CF ^ funct3[0]); //bltu, bgeu
+    default: DoBranch = 1'b0;
+    endcase
    maindec md (op, ResultSrc, MemWrite, Branch,
 	       ALUSrc, RegWrite, Jump, ImmSrc, ALUOp);
    aludec ad (op[5], funct3, funct7b5, ALUOp, ALUControl);
-  always_comb
-    case(funct3)
-    3'b00x: DoBranch = ZF ^ funct3[0]; //beq, bne
-    3'b10x: DoBranch = (SF ^ OF) ^ funct3[0]; //blt, bge might have to be ~
-    3'b11x: DoBranch = CF ^ funct3[0]; //bltu, bgeu
-    default: DoBranch = 1'bx;
-    endcase
+
   assign PCSrc = Branch & DoBranch | Jump;
   assign LUIOp = op == 7'b0110111;
 endmodule // controller
@@ -151,9 +152,9 @@ module maindec (input  logic [6:0] op,
        7'b0010011: controls = 12'b1_000_1_0_00_0_10_0; // I–type ALU
        7'b1101111: controls = 12'b1_011_0_0_10_0_00_1; // jal
        7'b1100111: controls = 12'b1_000_1_0_10_0_00_1; // jalr                        <---Check
-       7'b0110111: controls = 12'b1_100_1_0_10_0_11_0; // lui     CHECK////////
+       7'b0110111: controls = 12'b1_100_1_0_00_0_11_0; // lui     CHECK////////
        7'b0010111: controls = 12'b1_100_1_0_00_0_00_0; // auipc   CHECK////////
-       default: controls = 12'bx_xx_x_x_xx_x_xx_x; // ???
+       default: controls = 12'bx_xxx_x_x_xx_x_xx_x; // ???
      endcase // case (op)
    
 endmodule // maindec
@@ -199,13 +200,15 @@ module datapath (input  logic        clk, reset,
 		 input  logic [31:0] Instr,
 		 output logic [31:0] ALUResult, WriteData,
 		 input  logic [31:0] ReadData,
-     input  logic LUIOp);
+     input  logic LUIOp,
+     output logic [3:0] ByteMask);
    
    logic [31:0] 		     PCNext, PCPlus4, PCTarget;
    logic [31:0] 		     ImmExt;
    logic [31:0] 		     SrcA, SrcB;
    logic [31:0] 		     Result;
    logic [31:0] 		     RD1;
+   logic [31:0]          WriteIn, ReadIn; //added
    // next PC logic
    flopr #(32) pcreg (clk, reset, PCNext, PC);
    adder  pcadd4 (PC, 32'd4, PCPlus4);
@@ -213,15 +216,17 @@ module datapath (input  logic        clk, reset,
    mux2 #(32)  pcmux (PCPlus4, PCTarget, PCSrc, PCNext);
    // register file logic
    regfile  rf (clk, RegWrite, Instr[19:15], Instr[24:20],
-	       Instr[11:7], Result, RD1, WriteData);
+	       Instr[11:7], Result, RD1, WriteIn);
    extend  ext (Instr[31:7], ImmSrc, ImmExt);
    // ALU logic
    mux2 #(32)  srcbmux (WriteData, ImmExt, ALUSrc, SrcB);
    alu  alu (SrcA, SrcB, ALUControl, ALUResult, ZF, CF, OF, SF);
    mux3 #(32) resultmux (ALUResult, ReadData, PCPlus4, ResultSrc, Result);
+   SubWordWrite sww(Instr[14:12], ALUResult[1:0], WriteIn, WriteData, ByteMask);
+   SubWordRead swr(ReadData, ALUResult[1:0], Instr[14:12], ReadIn);
    
    //LUI logic
-  mux2 #(32) luimux (RD1, 1'b0, LUIOp, SrcA);
+  mux2 #(32) luimux (RD1, 32'h0000, LUIOp, SrcA);
 endmodule // datapath
 
 module adder (input  logic [31:0] a, b,
@@ -298,19 +303,20 @@ module top (input  logic        clk, reset,
 	    output logic 	MemWrite);
    
    logic [31:0] 		PC, Instr, ReadData;
+   logic [3:0]      ByteMask;
    
    // instantiate processor and memories
    riscvsingle rv32single (clk, reset, PC, Instr, MemWrite, DataAdr,
-			   WriteData, ReadData);
+			   WriteData, ReadData, ByteMask);
    imem imem (PC, Instr);
-   dmem dmem (clk, MemWrite, DataAdr, WriteData, ReadData);
+   dmem dmem (clk, MemWrite, DataAdr, WriteData, ByteMask, ReadData);
    
 endmodule // top
 
 module imem (input  logic [31:0] a,
 	     output logic [31:0] rd);
    
-   logic [31:0] 		 RAM[255:0];
+   logic [31:0] 		 RAM[2047:0];
    
    assign rd = RAM[a[31:2]]; // word aligned
    
@@ -318,13 +324,18 @@ endmodule // imem
 
 module dmem (input  logic        clk, we,
 	     input  logic [31:0] a, wd,
+       input  logic [3:0] ByteMask, 
 	     output logic [31:0] rd);
    
    logic [31:0] 		 RAM[255:0];
+   logic [31:0]      BitMask;
+   assign BitMask = {{8{ByteMask[3]}},{8{ByteMask[2]}},{8{ByteMask[1]}},{8{ByteMask[0]}}};
    
    assign rd = RAM[a[31:2]]; // word aligned
+  /* always_ff @(posedge clk)
+     if (we) RAM[a[31:2]] <= wd; */
    always_ff @(posedge clk)
-     if (we) RAM[a[31:2]] <= wd;
+    if (we) RAM[a[31:2]] <= (~BitMask & rd) | (wd & BitMask);
       
 endmodule // dmem
 
@@ -336,6 +347,7 @@ module alu (input  logic [31:0] a, b,
    logic [31:0] 	       condinvb, sum;
    logic 		       v;
    logic 		       isAddSub;       // true when is add or subtract operation
+   logic signed SignIn = a;
 
    assign condinvb = alucontrol[0] ? ~b : b; //conditional invert b
    assign sum = a + condinvb + alucontrol[0]; //check
@@ -349,12 +361,12 @@ module alu (input  logic [31:0] a, b,
        4'b0001:  result = sum;         // sub
        4'b0010:  result = a & b;       // and
        4'b0011:  result = a | b;       // or
-       4'b0100:  result = a ^ b;       // xor                              <---ADDED
+       4'b0100:  result = a ^ b;       // xor
        4'b0101:  result = sum[31] ^ v; // slt
        4'b0110:  result = a << b[4:0];      // sll    shift up to 32 bits
        4'b0111:  result = a >> b[4:0];      // srl
-       4'b1000:  result = a >>> b[4:0];     // sra
-       4'b1001:  result = a; //sltu            ALMOST DEF WRONG!!! Don't use V, make new var to work with unsigned d need to use specific bit for unsigned
+       4'b1000:  result = SignIn >>> b[4:0];     // sra must be signed for expresion to work
+       4'b1001:  result = a; //sltu            FIX
 
        default: result = 32'bx;
      endcase
@@ -362,10 +374,69 @@ module alu (input  logic [31:0] a, b,
    assign ZF = (result == 32'b0); //zero flag 
    assign CF = a < b; //Carry Flag
    assign OF = v; //Overflow Flag
-   assign SF = result[31]; //Sign Flag
+   assign SF = (result[31] == 1); //Sign Flag
 
    
 endmodule // alu
+
+module SubWordWrite (input logic [2:0] funct3,
+                     input logic [1:0] ByteAdr, //Last 2 bits of EffAdr
+                     input logic [31:0] WriteData,
+                     output logic [31:0] WriteOut,
+                     output logic [3:0] ByteMask);
+  always_comb
+     case (funct3[1:0])
+      2'b00:  WriteOut = {4{WriteData[7:0]}};
+      2'b01:  WriteOut = {2{WriteData[15:0]}};
+      2'b10:  WriteOut = WriteData;
+      default: WriteOut = WriteData;
+     endcase
+
+  always_comb
+     casex ({funct3[1:0], ByteAdr})
+     4'b00_00:  ByteMask = 4'b0001;
+     4'b00_01:  ByteMask = 4'b0010;
+     4'b00_10:  ByteMask = 4'b0100;
+     4'b00_11:  ByteMask = 4'b1000;
+     4'b01_0x:  ByteMask = 4'b0011;
+     4'b01_1x:  ByteMask = 4'b1100;
+     4'b10_xx:  ByteMask = 4'b1111;
+     default:   ByteMask = 4'b1111;
+     endcase
+
+
+
+endmodule
+
+module SubWordRead (input logic [31:0] RDIn,
+                     input logic [1:0]  ByteAdr,
+                     input logic [2:0]  funct3,
+                     output logic[31:0] rd);
+logic [7:0] Byte;
+logic [15:0] HalfWord;
+logic [31:0] Word;
+always_comb
+  case (ByteAdr)
+  2'b00:  Byte = RDIn[7:0];
+  2'b01:  Byte = RDIn[15:8];
+  2'b10:  Byte = RDIn[23:16];
+  2'b11:  Byte = RDIn[31:24];
+  default:  Byte = RDIn[7:0];
+  endcase
+assign HalfWord = ByteAdr[1] ? RDIn[31:16] : RDIn[15:0];
+assign Word = RDIn;
+
+always_comb
+  case (funct3)
+  3'b000: rd = {{24{Byte[7]}}, Byte}; //LB
+  3'b100: rd = {24'b0, Byte};       //LBU
+  3'b001: rd = {{16{HalfWord[15]}}, HalfWord}; //LH
+  3'b101: rd = {16'b0, HalfWord};
+  3'b010: rd = Word;
+  default: rd = Word;
+  endcase
+
+endmodule
 
 module regfile (input  logic        clk, 
 		input  logic 	    we3, 
